@@ -1,0 +1,322 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>100 Bag Challenge</title>
+    <style>
+        :root {
+            --primary-teal: #008080;
+            --dark-teal: #006666;
+            --light-teal: #e6f2f2;
+            --bg: #f4f7f6;
+            --text: #333;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: var(--bg);
+            color: var(--text);
+            display: flex;
+            justify-content: center;
+            padding: 20px;
+            margin: 0;
+        }
+
+        .container {
+            width: 100%;
+            max-width: 600px;
+            background: white;
+            padding: 30px;
+            border-radius: 12px;
+            box-shadow: 0 10px 25px rgba(0,0,0,0.1);
+            text-align: center;
+        }
+
+        h1 { color: var(--primary-teal); margin-bottom: 20px; }
+        .hidden { display: none !important; }
+
+        /* Setup Screen */
+        .setup-group { margin-bottom: 15px; }
+        input[type="text"] {
+            padding: 10px;
+            width: 70%;
+            border: 2px solid #ddd;
+            border-radius: 6px;
+            font-size: 16px;
+        }
+
+        button {
+            background-color: var(--primary-teal);
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-weight: bold;
+            transition: background 0.2s;
+            margin-top: 10px;
+        }
+
+        button:hover { background-color: var(--dark-teal); }
+
+        /* Game Screen */
+        .stat-bar {
+            display: flex;
+            justify-content: space-around;
+            background: var(--light-teal);
+            padding: 10px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            font-weight: bold;
+        }
+
+        .score-input-area { margin: 30px 0; }
+        .score-input-area input {
+            width: 80px;
+            font-size: 24px;
+            text-align: center;
+            padding: 10px;
+            border: 2px solid var(--primary-teal);
+            border-radius: 8px;
+        }
+
+        /* Scoreboard */
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 20px;
+        }
+        th, td {
+            padding: 12px;
+            border-bottom: 1px solid #ddd;
+        }
+        th { background: var(--light-teal); }
+
+        /* Winner Banner */
+        #winnerBanner {
+            position: fixed;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            background-color: var(--primary-teal);
+            color: white;
+            padding: 20px;
+            font-size: 28px;
+            font-weight: bold;
+            animation: slideUp 0.5s ease-out;
+            box-shadow: 0 -5px 15px rgba(0,0,0,0.2);
+        }
+
+        @keyframes slideUp {
+            from { transform: translateY(100%); }
+            to { transform: translateY(0); }
+        }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h1>100 Bag Challenge</h1>
+
+    <!-- Phase 1: Player Setup -->
+    <div id="setupScreen">
+        <h3>Enter Player Names</h3>
+        <div id="playerInputs">
+            <div class="setup-group"><input type="text" placeholder="Player 1 Name" class="p-name"></div>
+        </div>
+        <button onclick="addPlayerField()">+ Add Player</button>
+        <br>
+        <button onclick="startGame()" style="background: #2ecc71;">Start Challenge</button>
+    </div>
+
+    <!-- Phase 2: Gameplay -->
+    <div id="gameScreen" class="hidden">
+        <div class="stat-bar">
+            <span>Round: <span id="displayRound">1</span>/3</span>
+            <span>Player: <span id="displayPlayer">Name</span></span>
+            <span>Throw: <span id="displayThrow">1</span>/5</span>
+        </div>
+
+        <div class="score-input-area">
+            <p>Enter score for this throw:</p>
+            <input type="number" id="currentScore" min="0" value="0">
+            <br>
+            <button id="actionBtn" onclick="nextAction()">Submit Throw</button>
+        </div>
+        
+        <div id="roundSummary" class="hidden">
+            <h3>Round <span id="summaryRoundNum"></span> Totals</h3>
+            <div id="roundScoresList"></div>
+            <button onclick="startNextRound()">Start Next Round</button>
+        </div>
+    </div>
+
+    <!-- Phase 3: Final Scoreboard -->
+    <div id="finalScreen" class="hidden">
+        <h2>🏆 Final Results</h2>
+        <table id="scoreTable">
+            <thead>
+                <tr>
+                    <th>Player</th>
+                    <th>R1</th>
+                    <th>R2</th>
+                    <th>R3</th>
+                    <th>Total</th>
+                </tr>
+            </thead>
+            <tbody id="scoreBody"></tbody>
+        </table>
+        <button onclick="location.reload()" style="margin-top:20px;">Play Again</button>
+    </div>
+</div>
+
+<!-- Winner Banner -->
+<div id="winnerBanner" class="hidden">
+    WINNER: <span id="winnerName"></span>! 🏁
+</div>
+
+<!-- Audio for Airhorn (Using a Data URI for a short synth horn to keep it single-file) -->
+<audio id="airhorn">
+    <source src="https://actions.google.com/sounds/v1/sports/crowd_cheer.ogg" type="audio/ogg">
+</audio>
+
+<script>
+    let players = [];
+    let currentRound = 1;
+    let currentPlayerIndex = 0;
+    let currentThrow = 1;
+
+    function addPlayerField() {
+        const div = document.createElement('div');
+        div.className = 'setup-group';
+        div.innerHTML = `<input type="text" placeholder="Player ${document.querySelectorAll('.p-name').length + 1} Name" class="p-name">`;
+        document.getElementById('playerInputs').appendChild(div);
+    }
+
+    function startGame() {
+        const nameInputs = document.querySelectorAll('.p-name');
+        nameInputs.forEach(input => {
+            if (input.value.trim() !== "") {
+                players.push({
+                    name: input.value.trim(),
+                    scores: { 1: [], 2: [], 3: [] },
+                    totals: { 1: 0, 2: 0, 3: 0 },
+                    grandTotal: 0
+                });
+            }
+        });
+
+        if (players.length === 0) {
+            alert("Please enter at least one player name.");
+            return;
+        }
+
+        document.getElementById('setupScreen').classList.add('hidden');
+        document.getElementById('gameScreen').classList.remove('hidden');
+        updateDisplay();
+    }
+
+    function updateDisplay() {
+        document.getElementById('displayRound').innerText = currentRound;
+        document.getElementById('displayPlayer').innerText = players[currentPlayerIndex].name;
+        document.getElementById('displayThrow').innerText = currentThrow;
+    }
+
+    function nextAction() {
+        const scoreVal = parseInt(document.getElementById('currentScore').value) || 0;
+        
+        // Record score
+        players[currentPlayerIndex].scores[currentRound].push(scoreVal);
+        
+        if (currentThrow < 5) {
+            // Next throw for same player
+            currentThrow++;
+            document.getElementById('currentScore').value = 0;
+            updateDisplay();
+        } else {
+            // Player finished 5 throws
+            const total = players[currentPlayerIndex].scores[currentRound].reduce((a, b) => a + b, 0);
+            players[currentPlayerIndex].totals[currentRound] = total;
+            
+            // Check if there's a next player
+            if (currentPlayerIndex < players.length - 1) {
+                document.getElementById('actionBtn').innerText = "Next Player";
+                document.getElementById('actionBtn').onclick = () => {
+                    currentPlayerIndex++;
+                    currentThrow = 1;
+                    document.getElementById('currentScore').value = 0;
+                    document.getElementById('actionBtn').innerText = "Submit Throw";
+                    document.getElementById('actionBtn').onclick = nextAction;
+                    updateDisplay();
+                };
+            } else {
+                // End of round for all players
+                showRoundSummary();
+            }
+        }
+    }
+
+    function showRoundSummary() {
+        const summaryArea = document.getElementById('roundScoresList');
+        summaryArea.innerHTML = "";
+        players.forEach(p => {
+            const pElem = document.createElement('p');
+            pElem.innerHTML = `<strong>${p.name}:</strong> ${p.totals[currentRound]} points`;
+            summaryArea.appendChild(pElem);
+        });
+
+        document.getElementById('summaryRoundNum').innerText = currentRound;
+        document.querySelector('.score-input-area').classList.add('hidden');
+        document.getElementById('roundSummary').classList.remove('hidden');
+    }
+
+    function startNextRound() {
+        if (currentRound < 3) {
+            currentRound++;
+            currentPlayerIndex = 0;
+            currentThrow = 1;
+            document.getElementById('currentScore').value = 0;
+            document.getElementById('roundSummary').classList.add('hidden');
+            document.querySelector('.score-input-area').classList.remove('hidden');
+            document.getElementById('actionBtn').innerText = "Submit Throw";
+            document.getElementById('actionBtn').onclick = nextAction;
+            updateDisplay();
+        } else {
+            showFinalScoreboard();
+        }
+    }
+
+    function showFinalScoreboard() {
+        document.getElementById('gameScreen').classList.add('hidden');
+        document.getElementById('finalScreen').classList.remove('hidden');
+
+        let winner = players[0];
+        const body = document.getElementById('scoreBody');
+        body.innerHTML = "";
+
+        players.forEach(p => {
+            p.grandTotal = p.totals[1] + p.totals[2] + p.totals[3];
+            if (p.grandTotal > winner.grandTotal) winner = p;
+
+            const row = `<tr>
+                <td>${p.name}</td>
+                <td>${p.totals[1]}</td>
+                <td>${p.totals[2]}</td>
+                <td>${p.totals[3]}</td>
+                <td><strong>${p.grandTotal}</strong></td>
+            </tr>`;
+            body.innerHTML += row;
+        });
+
+        // Banner and Sound
+        document.getElementById('winnerName').innerText = winner.name;
+        document.getElementById('winnerBanner').classList.remove('hidden');
+        
+        const horn = document.getElementById('airhorn');
+        horn.play().catch(e => console.log("Audio needs user interaction first"));
+    }
+</script>
+
+</body>
+</html>
