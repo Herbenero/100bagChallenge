@@ -25,7 +25,7 @@
 
         .container {
             width: 100%;
-            max-width: 600px;
+            max-width: 800px;
             background: white;
             padding: 30px;
             border-radius: 12px;
@@ -86,12 +86,20 @@
             width: 100%;
             border-collapse: collapse;
             margin-top: 20px;
+            overflow-x: auto;
         }
         th, td {
             padding: 12px;
             border-bottom: 1px solid #ddd;
         }
         th { background: var(--light-teal); }
+        
+        /* First column styling for row labels */
+        td:first-child, th:first-child {
+            background: var(--light-teal);
+            font-weight: bold;
+            text-align: left;
+        }
 
         /* Winner Banner */
         #winnerBanner {
@@ -157,12 +165,8 @@
         <h2>🏆 Final Results</h2>
         <table id="scoreTable">
             <thead>
-                <tr>
-                    <th>Player</th>
-                    <th>R1</th>
-                    <th>R2</th>
-                    <th>R3</th>
-                    <th>Total</th>
+                <tr id="scoreHeader">
+                    <th>Round</th>
                 </tr>
             </thead>
             <tbody id="scoreBody"></tbody>
@@ -184,8 +188,8 @@
 <script>
     let players = [];
     let currentRound = 1;
-    let currentPlayerIndex = 0;
     let currentThrow = 1;
+    let currentPlayerIndex = 0;
 
     function addPlayerField() {
         const div = document.createElement('div');
@@ -228,32 +232,26 @@
         
         // Record score
         players[currentPlayerIndex].scores[currentRound].push(scoreVal);
+        document.getElementById('currentScore').value = 0;
         
-        if (currentThrow < 5) {
-            // Next throw for same player
-            currentThrow++;
-            document.getElementById('currentScore').value = 0;
-            updateDisplay();
-        } else {
-            // Player finished 5 throws
-            const total = players[currentPlayerIndex].scores[currentRound].reduce((a, b) => a + b, 0);
-            players[currentPlayerIndex].totals[currentRound] = total;
-            
-            // Check if there's a next player
-            if (currentPlayerIndex < players.length - 1) {
-                document.getElementById('actionBtn').innerText = "Next Player";
-                document.getElementById('actionBtn').onclick = () => {
-                    currentPlayerIndex++;
-                    currentThrow = 1;
-                    document.getElementById('currentScore').value = 0;
-                    document.getElementById('actionBtn').innerText = "Submit Throw";
-                    document.getElementById('actionBtn').onclick = nextAction;
-                    updateDisplay();
-                };
+        // Move to next player (rotate through players)
+        currentPlayerIndex = (currentPlayerIndex + 1) % players.length;
+        
+        // Check if all players have thrown the current throw
+        const allPlayersThrown = (currentPlayerIndex === 0);
+        
+        if (allPlayersThrown) {
+            // All players completed this throw, move to next throw
+            if (currentThrow < 5) {
+                currentThrow++;
+                updateDisplay();
             } else {
-                // End of round for all players
+                // All throws complete for all players
                 showRoundSummary();
             }
+        } else {
+            // Next player's turn
+            updateDisplay();
         }
     }
 
@@ -261,8 +259,10 @@
         const summaryArea = document.getElementById('roundScoresList');
         summaryArea.innerHTML = "";
         players.forEach(p => {
+            const total = p.scores[currentRound].reduce((a, b) => a + b, 0);
+            p.totals[currentRound] = total;
             const pElem = document.createElement('p');
-            pElem.innerHTML = `<strong>${p.name}:</strong> ${p.totals[currentRound]} points`;
+            pElem.innerHTML = `<strong>${p.name}:</strong> ${total} points`;
             summaryArea.appendChild(pElem);
         });
 
@@ -279,8 +279,6 @@
             document.getElementById('currentScore').value = 0;
             document.getElementById('roundSummary').classList.add('hidden');
             document.querySelector('.score-input-area').classList.remove('hidden');
-            document.getElementById('actionBtn').innerText = "Submit Throw";
-            document.getElementById('actionBtn').onclick = nextAction;
             updateDisplay();
         } else {
             showFinalScoreboard();
@@ -292,22 +290,55 @@
         document.getElementById('finalScreen').classList.remove('hidden');
 
         let winner = players[0];
+        
+        // Build table header with player names
+        const headerRow = document.getElementById('scoreHeader');
+        players.forEach(p => {
+            const th = document.createElement('th');
+            th.innerText = p.name;
+            headerRow.appendChild(th);
+        });
+        
+        // Add Total column header
+        const totalTh = document.createElement('th');
+        totalTh.innerText = 'Total';
+        headerRow.appendChild(totalTh);
+
+        // Build table body with rounds
         const body = document.getElementById('scoreBody');
         body.innerHTML = "";
+
+        for (let round = 1; round <= 3; round++) {
+            const row = document.createElement('tr');
+            const roundLabel = document.createElement('td');
+            roundLabel.innerText = `R${round}`;
+            row.appendChild(roundLabel);
+
+            players.forEach(p => {
+                const td = document.createElement('td');
+                td.innerText = p.totals[round];
+                row.appendChild(td);
+            });
+            
+            body.appendChild(row);
+        }
+
+        // Add total row
+        const totalRow = document.createElement('tr');
+        const totalLabel = document.createElement('td');
+        totalLabel.innerText = 'Total';
+        totalRow.appendChild(totalLabel);
 
         players.forEach(p => {
             p.grandTotal = p.totals[1] + p.totals[2] + p.totals[3];
             if (p.grandTotal > winner.grandTotal) winner = p;
 
-            const row = `<tr>
-                <td>${p.name}</td>
-                <td>${p.totals[1]}</td>
-                <td>${p.totals[2]}</td>
-                <td>${p.totals[3]}</td>
-                <td><strong>${p.grandTotal}</strong></td>
-            </tr>`;
-            body.innerHTML += row;
+            const td = document.createElement('td');
+            td.innerHTML = `<strong>${p.grandTotal}</strong>`;
+            totalRow.appendChild(td);
         });
+
+        body.appendChild(totalRow);
 
         // Banner and Sound
         document.getElementById('winnerName').innerText = winner.name;
